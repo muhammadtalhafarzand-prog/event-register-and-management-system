@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventFlow — Discover events. Connect with people.</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f3ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Font Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Vue 3 CDN for reactive single-page app architecture -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <style>
+        [v-cloak] { display: none !important; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="h-full text-slate-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+<div id="app" v-cloak class="min-h-full flex flex-col">
+
+    <!-- Global Toast Notification -->
+    <div v-if="toast.show" 
+         class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform border"
+         :class="toast.type === 'success' ? 'bg-slate-900 text-white border-slate-700' : 'bg-red-600 text-white border-red-500'">
+        <i :data-lucide="toast.type === 'success' ? 'check-circle' : 'alert-circle'" class="w-5 h-5 text-brand-500"></i>
+        <span class="text-sm font-medium">{{ toast.message }}</span>
+        <button @click="toast.show = false" class="ml-2 text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+
+    <!-- Navigation Bar (Public & Main App context) -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center gap-3 cursor-pointer" @click="setView('landing')">
+                    <div class="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white font-bold text-xl">
+                        ⚡
+                    </div>
+                    <div>
+                        <span class="text-xl font-extrabold tracking-tight text-slate-900">Event<span class="text-brand-600">Flow</span></span>
+                        <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold tracking-wide bg-brand-50 text-brand-700 rounded-full border border-brand-200/60 uppercase">PRO</span>
+                    </div>
+                </div>
+
+                <!-- Desktop Navigation Links -->
+                <nav class="hidden md:flex items-center space-x-1">
+                    <button @click="setView('landing')" 
+                            :class="currentView === 'landing' ? 'text-brand-600 bg-brand-50/50 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'" 
+                            class="px-3 py-2 rounded-lg text-sm transition-colors">Home</button>
+                    <button @click="setView('events')" 
+                            :class="currentView === 'events' ? 'text-brand-600 bg-brand-50/50 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'" 
+                            class="px-3 py-2 rounded-lg text-sm transition-colors">Events</button>
+                    <button @click="setView('user-dashboard')" v-if="user.isLoggedIn && user.role === 'attendee'" 
+                            :class="currentView === 'user-dashboard' ? 'text-brand-600 bg-brand-50/50 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'" 
+                            class="px-3 py-2 rounded-lg text-sm transition-colors">Dashboard</button>
+                    <button @click="setView('admin-dashboard')" v-if="user.isLoggedIn && user.role === 'admin'" 
+                            :class="currentView.startsWith('admin') ? 'text-brand-600 bg-brand-50/50 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'" 
+                            class="px-3 py-2 rounded-lg text-sm transition-colors">Admin Portal</button>
+                </nav>
+
+                <!-- Auth Buttons / User Profile Switcher -->
+                <div class="hidden md:flex items-center gap-3">
+                    <template v-if="!user.isLoggedIn">
+                        <button @click="setView('login')" class="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors">Sign In</button>
+                        <button @click="setView('register')" class="px-4 py-2 text-sm font-medium text-white gradient-bg rounded-xl shadow-md shadow-indigo-500/20 hover:opacity-95 transition-all">Get Started</button>
+                    </template>
+                    <template v-else>
+                        <!-- Role Toggle Switcher for testing/UI preview -->
+                        <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2 text-xs">
+                            <button @click="user.role = 'attendee'; setView('user-dashboard')" 
+                                    :class="user.role === 'attendee' ? 'bg-white shadow-xs font-semibold text-slate-900' : 'text-slate-500'" 
+                                    class="px-2.5 py-1 rounded-lg transition-all">Attendee</button>
+                            <button @click="user.role = 'admin'; setView('admin-dashboard')" 
+                                    :class="user.role === 'admin' ? 'bg-white shadow-xs font-semibold text-slate-900' : 'text-slate-500'" 
+                                    class="px-2.5 py-1 rounded-lg transition-all">Admin</button>
+                        </div>
+                        
+                        <div class="relative group">
+                            <button @click="setView('profile')" class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200">
+                                <img :src="user.avatar" class="w-8 h-8 rounded-lg object-cover ring-2 ring-brand-500/30" alt="Avatar">
+                                <span class="text-sm font-semibold text-slate-800">{{ user.name.split(' ')[0] }}</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100">
+                    <i :data-lucide="mobileMenuOpen ? 'x' : 'menu'" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Drawer -->
+        <div v-if="mobileMenuOpen" class="md:hidden border-b border-slate-200 bg-white px-4 pt-2 pb-4 space-y-2">
+            <button @click="setView('landing'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100">Home</button>
+            <button @click="setView('events'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100">Browse Events</button>
+            <template v-if="user.isLoggedIn">
+                <button @click="setView('user-dashboard'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100">Attendee Dashboard</button>
+                <button @click="setView('admin-dashboard'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100">Admin Portal</button>
+                <button @click="setView('profile'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100">My Profile</button>
+                <button @click="logout(); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-red-600 hover:bg-red-50">Log Out</button>
+            </template>
+            <template v-else>
+                <button @click="setView('login'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100">Sign In</button>
+                <button @click="setView('register'); mobileMenuOpen=false" class="block w-full text-left px-3 py-2 rounded-lg text-base font-medium text-brand-600 font-semibold hover:bg-brand-50">Create Account</button>
+            </template>
+        </div>
+    </header>
+
+    <!-- Main Content Dynamic View Router -->
+    <main class="flex-1">
+
+        <!-- ================= LANDING PAGE ================= -->
+        <section v-if="currentView === 'landing'" class="relative overflow-hidden">
+            <!-- Hero Section -->
+            <div class="relative pt-12 pb-20 md:pt-20 md:pb-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid lg:grid-cols-12 gap-12 items-center">
+                    <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+                        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 border border-brand-200/80 text-brand-700 text-xs font-semibold tracking-wide uppercase">
+                            <span class="flex h-2 w-2 rounded-full bg-brand-600 animate-ping"></span>
+                            FastAPI & Supabase Connected
+                        </div>
+                        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 leading-[1.15]">
+                            Discover Events That <span class="gradient-text">Matter</span>
+                        </h1>
+                        <p class="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed">
+                            Find exciting events, reserve your spot in seconds, and manage all your registrations effortlessly in one intuitive platform.
+                        </p>
+                        <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+                            <button @click="setView('events')" class="w-full sm:w-auto px-8 py-4 rounded-xl text-base font-semibold text-white gradient-bg shadow-xl shadow-indigo-500/25 hover:shadow-2xl hover:shadow-indigo-500/35 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 group">
+                                Explore Events
+                                <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+                            </button>
+                            <button @click="setView('register')" class="w-full sm:w-auto px-8 py-4 rounded-xl text-base font-semibold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm transition-all flex items-center justify-center gap-2">
+                                Create Account
+                            </button>
+                        </div>
+                        <div class="pt-6 flex items-center justify-center lg:justify-start gap-6 text-slate-500 text-xs font-medium">
+                            <span class="flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Instant Booking</span>
+                            <span class="flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Real-time Passports</span>
+                            <span class="flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Verified Hosts</span>
+                        </div>
+                    </div>
+
+                    <!-- Visual Right Illustration -->
+                    <div class="lg:col-span-5">
+                        <div class="relative mx-auto max-w-md lg:max-w-none">
+                            <div class="absolute -top-4 -left-4 w-72 h-72 bg-indigo-300 rounded-full filter blur-3xl opacity-30 animate-pulse"></div>
+                            <div class="absolute -bottom-4 -right-4 w-72 h-72 bg-purple-300 rounded-full filter blur-3xl opacity-30 animate-pulse"></div>
+                            
+                            <div class="relative bg-white p-4 rounded-3xl shadow-2xl border border-slate-200/80 transform hover:scale-[1.01] transition-transform">
+                                <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1000&q=80" alt="Tech Summit Event" class="w-full h-72 object-cover rounded-2xl">
+                                
+                                <div class="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold">
+                                            OCT
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-900 text-sm">Global Tech Summit 2026</h4>
+                                            <p class="text-xs text-slate-500">Convention Center • Live Sync</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">Live Now</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Featured Events Preview Section -->
+            <div class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex flex-col md:flex-row md:items-end justify-between mb-12">
+                    <div>
+                        <h2 class="text-3xl font-bold tracking-tight text-slate-900">Featured Events</h2>
+                        <p class="mt-2 text-slate-600">Hand-picked premium experiences curated for you</p>
+                    </div>
+                    <button @click="setView('events')" class="mt-4 md:mt-0 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700">
+                        View all events <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div v-for="evt in sampleEvents.slice(0, 3)" :key="evt.id" 
+                         class="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer"
+                         @click="openEventDetail(evt)">
+                        <div class="relative h-48 overflow-hidden">
+                            <img :src="evt.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'" :alt="evt.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                            <span class="absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-semibold bg-white/90 backdrop-blur-md text-slate-800 shadow-sm">
+                                {{ evt.category || 'Event' }}
+                            </span>
+                        </div>
+                        <div class="p-6 flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center gap-2 text-xs font-semibold text-brand-600 mb-2">
+                                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                                    {{ evt.date }} • {{ evt.time }}
+                                </div>
+                                <h3 class="text-lg font-bold text-slate-900 group-hover:text-brand-600 transition-colors line-clamp-1">{{ evt.title }}</h3>
+                                <p class="mt-2 text-sm text-slate-600 line-clamp-2">{{ evt.description }}</p>
+                            </div>
+                            <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                                <span class="text-xs text-slate-500 flex items-center gap-1">
+                                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> {{ evt.location }}
+                                </span>
+                                <span class="text-xs font-semibold px-2 py-1 rounded bg-slate-100 text-slate-700">
+                                    {{ evt.seatsLeft ?? evt.capacity }} seats
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= EVENTS DISCOVERY PAGE ================= -->
+        <section v-if="currentView === 'events'" class="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-8">
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Discover Events</h1>
+                <p class="text-slate-600 mt-1">Loaded directly from Python FastAPI & Supabase database.</p>
+            </div>
+
+            <!-- Search and Filters Bar -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="relative w-full md:w-96">
+                    <i data-lucide="search" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" v-model="searchQuery" placeholder="Search events, topics, or location..." 
+                           class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
+
+                <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+                    <button v-for="cat in ['All', 'Technology', 'Business', 'Education', 'Community']" :key="cat"
+                            @click="selectedCategory = cat"
+                            :class="selectedCategory === cat ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                            class="px-4 py-2 rounded-xl text-xs whitespace-nowrap transition-colors">
+                        {{ cat }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="isLoadingEvents" class="text-center py-20 bg-white rounded-3xl border border-slate-200">
+                <div class="inline-block w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p class="text-sm font-semibold text-slate-600">Fetching events from FastAPI...</p>
+            </div>
+
+            <!-- Event Cards Grid -->
+            <div v-else-if="filteredEvents.length > 0" class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div v-for="evt in filteredEvents" :key="evt.id" 
+                     class="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group">
+                    <div class="relative h-52 overflow-hidden">
+                        <img :src="evt.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'" :alt="evt.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                        <span class="absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-semibold bg-white/95 text-slate-800 shadow-sm">
+                            {{ evt.category || 'Event' }}
+                        </span>
+                        <span class="absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white shadow-sm">
+                            {{ evt.status || 'Published' }}
+                        </span>
+                    </div>
+
+                    <div class="p-6 flex-1 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between text-xs font-semibold text-brand-600 mb-2">
+                                <span class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i> {{ evt.date }}</span>
+                                <span class="flex items-center gap-1.5 text-slate-500"><i data-lucide="clock" class="w-4 h-4"></i> {{ evt.time }}</span>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900 mb-2 hover:text-brand-600 transition-colors cursor-pointer" @click="openEventDetail(evt)">
+                                {{ evt.title }}
+                            </h3>
+                            <p class="text-sm text-slate-600 line-clamp-2">{{ evt.description }}</p>
+                        </div>
+
+                        <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-slate-400">Location</p>
+                                <p class="text-sm font-semibold text-slate-700">{{ evt.location }}</p>
+                            </div>
+                            <button @click="openEventDetail(evt)" class="px-4 py-2 rounded-xl text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 transition-colors">
+                                View Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="text-center py-20 bg-white rounded-3xl border border-slate-200">
+                <i data-lucide="search-x" class="w-12 h-12 text-slate-400 mx-auto mb-4"></i>
+                <h3 class="text-lg font-bold text-slate-900">No events found</h3>
+                <p class="text-sm text-slate-500 mt-1">Try tweaking your search term or category filters.</p>
+                <button @click="searchQuery = ''; selectedCategory = 'All'" class="mt-4 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200">Reset Filters</button>
+            </div>
+        </section>
+
+        <!-- ================= EVENT DETAILS PAGE ================= -->
+        <section v-if="currentView === 'event-detail' && activeEvent" class="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <button @click="setView('events')" class="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Events
+            </button>
+
+            <div class="relative h-80 sm:h-96 rounded-3xl overflow-hidden mb-8 border border-slate-200/80 shadow-lg">
+                <img :src="activeEvent.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80'" :alt="activeEvent.title" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent"></div>
+                <div class="absolute bottom-6 left-6 right-6 text-white">
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-brand-600 text-white mb-3 inline-block">
+                        {{ activeEvent.category || 'General' }}
+                    </span>
+                    <h1 class="text-3xl sm:text-4xl font-black">{{ activeEvent.title }}</h1>
+                    <p class="text-slate-300 text-sm mt-1 flex items-center gap-4">
+                        <span class="flex items-center gap-1.5"><i data-lucide="map-pin" class="w-4 h-4"></i> {{ activeEvent.location }}</span>
+                        <span class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i> {{ activeEvent.date }}</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-12 gap-8">
+                <div class="lg:col-span-8 space-y-8">
+                    <div class="bg-white p-8 rounded-2xl border border-slate-200/80 shadow-xs">
+                        <h2 class="text-xl font-bold text-slate-900 mb-4">About This Event</h2>
+                        <p class="text-slate-600 leading-relaxed">{{ activeEvent.description }}</p>
+
+                        <h3 class="text-lg font-bold text-slate-900 mt-8 mb-3">Event Schedule & Highlights</h3>
+                        <ul class="space-y-3">
+                            <li class="flex items-start gap-3 text-slate-600 text-sm">
+                                <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 shrink-0 mt-0.5"></i>
+                                Keynote presentations and live technical discussions.
+                            </li>
+                            <li class="flex items-start gap-3 text-slate-600 text-sm">
+                                <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 shrink-0 mt-0.5"></i>
+                                Real-time registration synchronized with FastAPI & Supabase backend.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-4">
+                    <div class="sticky top-24 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xl space-y-6">
+                        <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                            <div>
+                                <span class="text-xs text-slate-400 uppercase font-semibold">Available Capacity</span>
+                                <p class="text-2xl font-extrabold text-slate-900">{{ activeEvent.seatsLeft ?? activeEvent.capacity }} / {{ activeEvent.capacity }}</p>
+                            </div>
+                            <span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold">Registration Open</span>
+                        </div>
+
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between text-slate-600">
+                                <span>Date:</span>
+                                <span class="font-semibold text-slate-900">{{ activeEvent.date }}</span>
+                            </div>
+                            <div class="flex justify-between text-slate-600">
+                                <span>Time:</span>
+                                <span class="font-semibold text-slate-900">{{ activeEvent.time }}</span>
+                            </div>
+                            <div class="flex justify-between text-slate-600">
+                                <span>Venue:</span>
+                                <span class="font-semibold text-slate-900">{{ activeEvent.location }}</span>
+                            </div>
+                        </div>
+
+                        <button @click="registerForEvent(activeEvent)" 
+                                :disabled="isAlreadyRegistered(activeEvent.id) || isSubmitting"
+                                :class="isAlreadyRegistered(activeEvent.id) ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'gradient-bg text-white hover:opacity-95 shadow-lg shadow-indigo-500/25'"
+                                class="w-full py-4 rounded-xl font-bold transition-all text-center">
+                            {{ isAlreadyRegistered(activeEvent.id) ? 'Already Registered' : (isSubmitting ? 'Processing...' : 'Register Now') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= LOGIN & REGISTER PAGES ================= -->
+        <section v-if="currentView === 'login' || currentView === 'register'" class="py-12 max-w-4xl mx-auto px-4">
+            <div class="bg-white rounded-3xl border border-slate-200/80 shadow-2xl overflow-hidden grid md:grid-cols-12">
+                <div class="md:col-span-5 gradient-bg p-8 text-white flex flex-col justify-between">
+                    <div>
+                        <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-xl mb-8">⚡</div>
+                        <h2 class="text-2xl font-extrabold">Welcome to EventFlow</h2>
+                        <p class="text-indigo-100 text-sm mt-2">Manage registrations & events powered by Python FastAPI and Supabase Auth.</p>
+                    </div>
+                    <div class="text-xs text-indigo-200 pt-8 border-t border-white/20">
+                        © 2026 EventFlow SaaS Inc. All rights reserved.
+                    </div>
+                </div>
+
+                <div class="md:col-span-7 p-8">
+                    <!-- Login View -->
+                    <template v-if="currentView === 'login'">
+                        <h3 class="text-2xl font-extrabold text-slate-900">Welcome back</h3>
+                        <p class="text-sm text-slate-500 mt-1 mb-6">Enter your credentials to sign in via FastAPI</p>
+
+                        <form @submit.prevent="handleAuth('login')" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                                <input type="email" required v-model="authForm.email" placeholder="user@example.com" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                                <input type="password" required v-model="authForm.password" placeholder="••••••••" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+
+                            <button type="submit" :disabled="isSubmitting" class="w-full py-3 rounded-xl font-bold text-white gradient-bg shadow-md shadow-indigo-500/20 hover:opacity-95 transition-all">
+                                {{ isSubmitting ? 'Authenticating...' : 'Sign In' }}
+                            </button>
+
+                            <div class="text-center pt-4 border-t border-slate-100">
+                                <span class="text-xs text-slate-500">Don't have an account? </span>
+                                <button @click="setView('register')" type="button" class="text-xs font-bold text-brand-600 hover:underline">Create account</button>
+                            </div>
+                        </form>
+                    </template>
+
+                    <!-- Register View -->
+                    <template v-if="currentView === 'register'">
+                        <h3 class="text-2xl font-extrabold text-slate-900">Create account</h3>
+                        <p class="text-sm text-slate-500 mt-1 mb-6">Join via FastAPI and Supabase Auth</p>
+
+                        <form @submit.prevent="handleAuth('register')" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                                <input type="text" required v-model="authForm.name" placeholder="John Doe" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                                <input type="email" required v-model="authForm.email" placeholder="user@example.com" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                                <input type="password" required v-model="authForm.password" placeholder="••••••••" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+
+                            <button type="submit" :disabled="isSubmitting" class="w-full py-3 rounded-xl font-bold text-white gradient-bg shadow-md shadow-indigo-500/20 hover:opacity-95 transition-all">
+                                {{ isSubmitting ? 'Registering...' : 'Create Account' }}
+                            </button>
+
+                            <div class="text-center pt-4 border-t border-slate-100">
+                                <span class="text-xs text-slate-500">Already have an account? </span>
+                                <button @click="setView('login')" type="button" class="text-xs font-bold text-brand-600 hover:underline">Sign in</button>
+                            </div>
+                        </form>
+                    </template>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= ATTENDEE DASHBOARD ================= -->
+        <section v-if="currentView === 'user-dashboard' || currentView === 'my-registrations'" class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-12 gap-8">
+                <div class="lg:col-span-3 space-y-2">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+                        <button @click="setView('user-dashboard')" 
+                                :class="currentView === 'user-dashboard' ? 'bg-brand-50 text-brand-700 font-bold' : 'text-slate-600 hover:bg-slate-100'"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors">
+                            <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+                        </button>
+                        <button @click="setView('events')" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-colors">
+                            <i data-lucide="compass" class="w-4 h-4"></i> Browse Events
+                        </button>
+                        <button @click="setView('my-registrations')" 
+                                :class="currentView === 'my-registrations' ? 'bg-brand-50 text-brand-700 font-bold' : 'text-slate-600 hover:bg-slate-100'"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors">
+                            <i data-lucide="ticket" class="w-4 h-4"></i> My Registrations
+                        </button>
+                        <button @click="setView('profile')" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-colors">
+                            <i data-lucide="user" class="w-4 h-4"></i> Profile Settings
+                        </button>
+                        <div class="pt-4 mt-4 border-t border-slate-100">
+                            <button @click="logout()" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors font-medium">
+                                <i data-lucide="log-out" class="w-4 h-4"></i> Log Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-9 space-y-8">
+                    <template v-if="currentView === 'user-dashboard'">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h1 class="text-2xl font-bold text-slate-900">Good day, {{ user.name }} 👋</h1>
+                                <p class="text-sm text-slate-500">Your account is connected to FastAPI backend.</p>
+                            </div>
+                            <button @click="setView('events')" class="px-4 py-2 rounded-xl text-xs font-bold text-white gradient-bg shadow-sm">
+                                Find Events
+                            </button>
+                        </div>
+
+                        <div class="grid sm:grid-cols-3 gap-6">
+                            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <p class="text-xs font-semibold text-slate-400">Total Registered</p>
+                                <p class="text-3xl font-black text-slate-900 mt-2">{{ myRegistrations.length }}</p>
+                            </div>
+                            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <p class="text-xs font-semibold text-slate-400">Upcoming Events</p>
+                                <p class="text-3xl font-black text-brand-600 mt-2">{{ myRegistrations.filter(r => r.status === 'Confirmed').length }}</p>
+                            </div>
+                            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <p class="text-xs font-semibold text-slate-400">Role</p>
+                                <p class="text-2xl font-black text-slate-700 mt-2 capitalize">{{ user.role }}</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                                <h3 class="font-bold text-slate-900">My Recent Registrations</h3>
+                                <button @click="setView('my-registrations')" class="text-xs text-brand-600 font-semibold hover:underline">View All</button>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-slate-400 text-xs font-semibold border-b border-slate-100">
+                                            <th class="p-4">Event</th>
+                                            <th class="p-4">Date</th>
+                                            <th class="p-4">Status</th>
+                                            <th class="p-4 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 text-sm">
+                                        <tr v-for="reg in myRegistrations" :key="reg.id" class="hover:bg-slate-50/50">
+                                            <td class="p-4 font-semibold text-slate-900">{{ reg.title }}</td>
+                                            <td class="p-4 text-slate-500">{{ reg.date }}</td>
+                                            <td class="p-4">
+                                                <span :class="reg.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'" class="px-2.5 py-1 rounded-full text-xs font-semibold">
+                                                    {{ reg.status }}
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-right">
+                                                <button @click="cancelRegistrationModal(reg)" class="text-xs font-semibold text-red-600 hover:underline">Cancel Pass</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template v-if="currentView === 'my-registrations'">
+                        <div class="flex items-center justify-between mb-6">
+                            <h1 class="text-2xl font-bold text-slate-900">My Registrations</h1>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div v-for="reg in myRegistrations" :key="reg.id" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">{{ reg.status }}</span>
+                                    <h3 class="text-lg font-bold text-slate-900 mt-2">{{ reg.title }}</h3>
+                                    <p class="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                                        <span>📍 {{ reg.location }}</span>
+                                        <span>📅 {{ reg.date }}</span>
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button @click="openEventDetail(reg)" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors">View Details</button>
+                                    <button @click="cancelRegistrationModal(reg)" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-colors">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= ADMIN DASHBOARD & MANAGEMENT ================= -->
+        <section v-if="currentView.startsWith('admin')" class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-12 gap-8">
+                <!-- Admin Sidebar -->
+                <div class="lg:col-span-3 space-y-2">
+                    <div class="bg-slate-900 text-white p-4 rounded-2xl shadow-xl space-y-1">
+                        <div class="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Admin Portal</div>
+                        <button @click="setView('admin-dashboard')" :class="currentView === 'admin-dashboard' ? 'bg-brand-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors">
+                            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Dashboard
+                        </button>
+                        <button @click="setView('admin-events')" :class="currentView === 'admin-events' ? 'bg-brand-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors">
+                            <i data-lucide="calendar" class="w-4 h-4"></i> Event Management
+                        </button>
+                        <button @click="prepareCreateEvent()" :class="currentView === 'admin-create-event' ? 'bg-brand-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> Create Event
+                        </button>
+                        <button @click="setView('admin-attendees')" :class="currentView === 'admin-attendees' ? 'bg-brand-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors">
+                            <i data-lucide="users" class="w-4 h-4"></i> Attendee Roster
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Admin Content Views -->
+                <div class="lg:col-span-9 space-y-8">
+
+                    <!-- Overview -->
+                    <template v-if="currentView === 'admin-dashboard'">
+                        <div class="flex justify-between items-center">
+                            <h1 class="text-2xl font-bold text-slate-900">Admin Dashboard Overview</h1>
+                            <button @click="prepareCreateEvent()" class="px-4 py-2 rounded-xl text-xs font-bold text-white gradient-bg shadow-sm flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i> New Event
+                            </button>
+                        </div>
+
+                        <div class="grid sm:grid-cols-4 gap-4">
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <span class="text-xs font-semibold text-slate-400">Total Events</span>
+                                <p class="text-2xl font-black text-slate-900 mt-1">{{ sampleEvents.length }}</p>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <span class="text-xs font-semibold text-slate-400">Published</span>
+                                <p class="text-2xl font-black text-emerald-600 mt-1">{{ sampleEvents.filter(e => e.status === 'Published').length }}</p>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <span class="text-xs font-semibold text-slate-400">Drafts</span>
+                                <p class="text-2xl font-black text-amber-600 mt-1">{{ sampleEvents.filter(e => e.status === 'Draft').length }}</p>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                                <span class="text-xs font-semibold text-slate-400">Backend API</span>
+                                <p class="text-2xl font-black text-brand-600 mt-1">Active</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+                                <h3 class="font-bold text-slate-900">Recent Events</h3>
+                                <button @click="setView('admin-events')" class="text-xs font-semibold text-brand-600 hover:underline">Manage All</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-slate-400 text-xs font-semibold">
+                                            <th class="p-4">Event Title</th>
+                                            <th class="p-4">Date</th>
+                                            <th class="p-4">Capacity</th>
+                                            <th class="p-4">Status</th>
+                                            <th class="p-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 text-sm">
+                                        <tr v-for="evt in sampleEvents" :key="evt.id" class="hover:bg-slate-50/50">
+                                            <td class="p-4 font-semibold text-slate-900">{{ evt.title }}</td>
+                                            <td class="p-4 text-slate-500">{{ evt.date }}</td>
+                                            <td class="p-4 text-slate-600">{{ evt.capacity }}</td>
+                                            <td class="p-4">
+                                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold"
+                                                      :class="evt.status === 'Published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
+                                                    {{ evt.status }}
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-right space-x-2">
+                                                <button @click="editEvent(evt)" class="text-xs font-semibold text-slate-600 hover:text-slate-900">Edit</button>
+                                                <button @click="deleteEvent(evt.id)" class="text-xs font-semibold text-red-600 hover:underline">Delete</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Admin Events List -->
+                    <template v-if="currentView === 'admin-events'">
+                        <div class="flex justify-between items-center mb-6">
+                            <h1 class="text-2xl font-bold text-slate-900">Event Management</h1>
+                            <button @click="prepareCreateEvent()" class="px-4 py-2 rounded-xl text-xs font-bold text-white gradient-bg">
+                                + Create New Event
+                            </button>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-400 text-xs font-semibold">
+                                        <th class="p-4">Title</th>
+                                        <th class="p-4">Location</th>
+                                        <th class="p-4">Date</th>
+                                        <th class="p-4">Status</th>
+                                        <th class="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-sm">
+                                    <tr v-for="evt in sampleEvents" :key="evt.id">
+                                        <td class="p-4 font-bold text-slate-900">{{ evt.title }}</td>
+                                        <td class="p-4 text-slate-600">{{ evt.location }}</td>
+                                        <td class="p-4 text-slate-500">{{ evt.date }}</td>
+                                        <td class="p-4">
+                                            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">{{ evt.status }}</span>
+                                        </td>
+                                        <td class="p-4 text-right space-x-3">
+                                            <button @click="editEvent(evt)" class="text-xs font-semibold text-brand-600 hover:underline">Edit</button>
+                                            <button @click="deleteEvent(evt.id)" class="text-xs font-semibold text-red-600 hover:underline">Delete</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+
+                    <!-- Create/Edit Event Form View -->
+                    <template v-if="currentView === 'admin-create-event'">
+                        <h1 class="text-2xl font-bold text-slate-900 mb-6">{{ isEditing ? 'Edit Event' : 'Create New Event' }}</h1>
+                        <form @submit.prevent="saveEvent()" class="bg-white p-8 rounded-2xl border border-slate-200/80 shadow-xs space-y-6">
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Event Title</label>
+                                    <input type="text" required v-model="newEvent.title" placeholder="Technology Conference" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Location / Venue</label>
+                                    <input type="text" required v-model="newEvent.location" placeholder="Peshawar" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+                                    <input type="text" required v-model="newEvent.date" placeholder="2026-10-20" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Time</label>
+                                    <input type="text" required v-model="newEvent.time" placeholder="10:00:00" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Total Capacity</label>
+                                    <input type="number" required v-model="newEvent.capacity" placeholder="100" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                                    <select v-model="newEvent.status" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+                                        <option value="Published">Published</option>
+                                        <option value="Draft">Draft</option>
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+                                    <textarea rows="4" required v-model="newEvent.description" placeholder="Annual technology conference..." class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button type="button" @click="setView('admin-events')" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+                                <button type="submit" :disabled="isSubmitting" class="px-6 py-2.5 rounded-xl text-sm font-bold text-white gradient-bg shadow-md">
+                                    {{ isSubmitting ? 'Saving to FastAPI...' : (isEditing ? 'Update Event' : 'Create Event') }}
+                                </button>
+                            </div>
+                        </form>
+                    </template>
+
+                    <!-- Attendee Roster -->
+                    <template v-if="currentView === 'admin-attendees'">
+                        <div class="flex justify-between items-center mb-6">
+                            <h1 class="text-2xl font-bold text-slate-900">Event Attendees Roster</h1>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-400 text-xs font-semibold">
+                                        <th class="p-4">Attendee Name</th>
+                                        <th class="p-4">Email</th>
+                                        <th class="p-4">Event</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-sm">
+                                    <tr v-for="att in sampleAttendees" :key="att.id">
+                                        <td class="p-4 font-bold text-slate-900">{{ att.name }}</td>
+                                        <td class="p-4 text-slate-600">{{ att.email }}</td>
+                                        <td class="p-4 text-slate-900 font-medium">{{ att.event }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PROFILE PAGE ================= -->
+        <section v-if="currentView === 'profile'" class="py-10 max-w-4xl mx-auto px-4">
+            <h1 class="text-2xl font-bold text-slate-900 mb-6">Account Settings</h1>
+            <div class="bg-white p-8 rounded-2xl border border-slate-200/80 shadow-xs space-y-6">
+                <div class="flex items-center gap-6 pb-6 border-b border-slate-100">
+                    <img :src="user.avatar" class="w-20 h-20 rounded-2xl object-cover ring-4 ring-brand-500/20" alt="Profile Avatar">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900">{{ user.name }}</h3>
+                        <p class="text-xs text-slate-500 capitalize">Role: <span class="font-semibold text-brand-600">{{ user.role }}</span></p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                        <input type="text" v-model="user.name" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                        <input type="email" v-model="user.email" readonly class="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 text-sm">
+                    </div>
+                </div>
+
+                <div class="pt-4 flex justify-end">
+                    <button @click="updateProfile()" :disabled="isSubmitting" class="px-6 py-2.5 rounded-xl text-sm font-bold text-white gradient-bg shadow-md">
+                        {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 py-12 mt-auto border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="pt-8 text-center text-xs text-slate-500">
+                © 2026 EventFlow Platform. Connected to FastAPI Backend.
+            </div>
+        </div>
+    </footer>
+
+    <!-- Cancellation Modal Confirmation -->
+    <div v-if="modal.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+        <div class="bg-white p-6 rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+            <h3 class="text-lg font-bold text-slate-900">{{ modal.title }}</h3>
+            <p class="text-sm text-slate-600">{{ modal.message }}</p>
+            <div class="flex justify-end gap-3 pt-2">
+                <button @click="modal.show = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Back</button>
+                <button @click="confirmCancelModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 shadow-sm">Confirm Cancel</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    /* Centralized API Client Service */
+    const getApiBaseUrl = () => {
+        if (typeof window !== 'undefined' && window.VITE_API_URL) return window.VITE_API_URL;
+        if (typeof window !== 'undefined' && window.process && window.process.env && window.process.env.VITE_API_URL) {
+            return window.process.env.VITE_API_URL;
+        }
+        return 'http://127.0.0.1:8000';
+    };
+
+    const API_BASE_URL = getApiBaseUrl();
+
+    const api = {
+        getToken() {
+            return localStorage.getItem('ef_access_token') || '';
+        },
+        setToken(token) {
+            if (token) localStorage.setItem('ef_access_token', token);
+            else localStorage.removeItem('ef_access_token');
+        },
+        getUserId() {
+            return localStorage.getItem('ef_user_id') || '';
+        },
+        setUserId(userId) {
+            if (userId) localStorage.setItem('ef_user_id', userId);
+            else localStorage.removeItem('ef_user_id');
+        },
+        async request(endpoint, options = {}) {
+            const headers = { ...options.headers };
+            const token = this.getToken();
+            
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(options.body);
+            }
+
+            const config = { ...options, headers };
+
+            const res = await fetch(`${API_BASE_URL}${endpoint}`, config);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({ detail: res.statusText }));
+                throw new Error(errData.detail || errData.message || `Request failed with status ${res.status}`);
+            }
+            return await res.json();
+        }
+    };
+
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                currentView: 'landing',
+                mobileMenuOpen: false,
+                searchQuery: '',
+                selectedCategory: 'All',
+                isEditing: false,
+                isSubmitting: false,
+                isLoadingEvents: false,
+                activeEvent: null,
+
+                user: {
+                    isLoggedIn: false,
+                    id: null,
+                    name: '',
+                    email: '',
+                    role: 'attendee',
+                    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+                },
+
+                authForm: {
+                    email: '',
+                    password: '',
+                    name: ''
+                },
+
+                toast: {
+                    show: false,
+                    message: '',
+                    type: 'success'
+                },
+
+                modal: {
+                    show: false,
+                    title: '',
+                    message: '',
+                    targetId: null
+                },
+
+                newEvent: {
+                    id: null,
+                    title: '',
+                    category: 'Technology',
+                    location: '',
+                    date: '',
+                    time: '',
+                    capacity: 100,
+                    status: 'Published',
+                    description: '',
+                    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80',
+                    seatsLeft: 100
+                },
+
+                sampleEvents: [],
+                myRegistrations: [],
+                sampleAttendees: []
+            }
+        },
+        computed: {
+            filteredEvents() {
+                return this.sampleEvents.filter(evt => {
+                    const matchesCategory = this.selectedCategory === 'All' || (evt.category && evt.category === this.selectedCategory);
+                    const titleMatch = evt.title ? evt.title.toLowerCase().includes(this.searchQuery.toLowerCase()) : false;
+                    const locMatch = evt.location ? evt.location.toLowerCase().includes(this.searchQuery.toLowerCase()) : false;
+                    return matchesCategory && (titleMatch || locMatch);
+                });
+            }
+        },
+        methods: {
+            setView(viewName) {
+                this.currentView = viewName;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                this.$nextTick(() => {
+                    if (window.lucide) lucide.createIcons();
+                });
+                if (viewName === 'user-dashboard' || viewName === 'my-registrations') {
+                    this.fetchMyRegistrations();
+                } else if (viewName === 'admin-attendees') {
+                    this.fetchAdminAttendees();
+                }
+            },
+            showToast(msg, type = 'success') {
+                this.toast.message = msg;
+                this.toast.type = type;
+                this.toast.show = true;
+                setTimeout(() => { this.toast.show = false; }, 3500);
+            },
+
+            async fetchCurrentUser() {
+                const userId = api.getUserId();
+                if (!api.getToken() || !userId) return;
+                try {
+                    const res = await api.request(`/profiles/${userId}`);
+                    this.user.isLoggedIn = true;
+                    this.user.id = res.id || userId;
+                    this.user.email = res.email || this.user.email;
+                    this.user.name = res.full_name || res.name || (res.email ? res.email.split('@')[0] : 'User');
+                    this.user.role = res.role || 'attendee';
+                } catch (e) {
+                    console.warn('Could not fetch user profile:', e.message);
+                }
+            },
+
+            async handleAuth(type) {
+                this.isSubmitting = true;
+                try {
+                    if (type === 'register') {
+                        // POST http://127.0.0.1:8000/register
+                        const regRes = await api.request('/register', {
+                            method: 'POST',
+                            body: {
+                                email: this.authForm.email,
+                                password: this.authForm.password
+                            }
+                        });
+
+                        // Optionally create initial profile record if user provided a name
+                        const userId = regRes.id || regRes.user_id || (regRes.user && regRes.user.id);
+                        if (userId && this.authForm.name) {
+                            try {
+                                await api.request('/profiles', {
+                                    method: 'POST',
+                                    body: {
+                                        id: userId,
+                                        full_name: this.authForm.name,
+                                        email: this.authForm.email,
+                                        role: 'attendee'
+                                    }
+                                });
+                            } catch (profErr) {
+                                console.warn('Profile auto-creation note:', profErr.message);
+                            }
+                        }
+
+                        this.showToast('Account created successfully! Please sign in.', 'success');
+                        this.setView('login');
+                    } else if (type === 'login') {
+                        // POST http://127.0.0.1:8000/login
+                        const data = await api.request('/login', {
+                            method: 'POST',
+                            body: {
+                                email: this.authForm.email,
+                                password: this.authForm.password
+                            }
+                        });
+
+                        const token = data.access_token || (data.session && data.session.access_token);
+                        const userId = data.user_id || (data.user && data.user.id) || data.id;
+
+                        if (token) {
+                            api.setToken(token);
+                            if (userId) {
+                                api.setUserId(userId);
+                                this.user.id = userId;
+                            }
+                            this.user.isLoggedIn = true;
+                            this.user.email = this.authForm.email;
+
+                            await this.fetchCurrentUser();
+                            await this.fetchMyRegistrations();
+                            this.showToast('Signed in successfully!', 'success');
+                            this.setView('events');
+                        } else {
+                            throw new Error('No access token received from backend');
+                        }
+                    }
+                } catch (err) {
+                    this.showToast(err.message || 'Authentication error', 'error');
+                } finally {
+                    this.isSubmitting = false;
+                }
+            },
+
+            async logout() {
+                api.setToken(null);
+                api.setUserId(null);
+                this.user.isLoggedIn = false;
+                this.user.id = null;
+                this.user.name = '';
+                this.user.email = '';
+                this.myRegistrations = [];
+                this.showToast('You have logged out.', 'success');
+                this.setView('landing');
+            },
+
+            async fetchEvents() {
+                this.isLoadingEvents = true;
+                try {
+                    // GET http://127.0.0.1:8000/events
+                    const data = await api.request('/events');
+                    if (Array.isArray(data)) {
+                        this.sampleEvents = data.map(evt => ({
+                            id: evt.id,
+                            title: evt.title,
+                            description: evt.description,
+                            date: evt.date,
+                            time: evt.time || '10:00:00',
+                            location: evt.location,
+                            capacity: evt.capacity,
+                            seatsLeft: evt.available_seats ?? evt.seatsLeft ?? evt.capacity,
+                            status: evt.status || 'Published',
+                            category: evt.category || 'Technology',
+                            image: evt.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'
+                        }));
+                    } else {
+                        this.sampleEvents = [];
+                    }
+                } catch (e) {
+                    this.showToast(`Failed to load events: ${e.message}`, 'error');
+                    this.sampleEvents = [];
+                } finally {
+                    this.isLoadingEvents = false;
+                }
+            },
+
+            async openEventDetail(evt) {
+                try {
+                    // GET http://127.0.0.1:8000/events/{event_id}
+                    const data = await api.request(`/events/${evt.id}`);
+                    this.activeEvent = {
+                        ...evt,
+                        ...data,
+                        seatsLeft: data.available_seats ?? data.capacity
+                    };
+                } catch (e) {
+                    this.activeEvent = evt;
+                }
+                this.setView('event-detail');
+            },
+
+            prepareCreateEvent() {
+                this.isEditing = false;
+                this.newEvent = {
+                    id: null,
+                    title: '',
+                    description: '',
+                    date: '2026-10-20',
+                    time: '10:00:00',
+                    location: '',
+                    capacity: 100,
+                    status: 'Published',
+                    category: 'Technology'
+                };
+                this.setView('admin-create-event');
+            },
+
+            editEvent(evt) {
+                this.isEditing = true;
+                this.newEvent = { ...evt };
+                this.setView('admin-create-event');
+            },
+
+            async saveEvent() {
+                this.isSubmitting = true;
+                const payload = {
+                    title: this.newEvent.title,
+                    description: this.newEvent.description,
+                    date: this.newEvent.date,
+                    time: this.newEvent.time,
+                    location: this.newEvent.location,
+                    capacity: parseInt(this.newEvent.capacity, 10),
+                    status: this.newEvent.status,
+                    category: this.newEvent.category
+                };
+
+                try {
+                    if (this.isEditing && this.newEvent.id) {
+                        // PUT http://127.0.0.1:8000/events/{event_id}
+                        await api.request(`/events/${this.newEvent.id}`, {
+                            method: 'PUT',
+                            body: payload
+                        });
+                        this.showToast('Event updated successfully!', 'success');
+                    } else {
+                        // POST http://127.0.0.1:8000/events
+                        await api.request('/events', {
+                            method: 'POST',
+                            body: payload
+                        });
+                        this.showToast('New event created!', 'success');
+                    }
+                    await this.fetchEvents();
+                    this.setView('admin-events');
+                } catch (err) {
+                    this.showToast(err.message || 'Failed to save event', 'error');
+                } finally {
+                    this.isSubmitting = false;
+                }
+            },
+
+            async deleteEvent(id) {
+                try {
+                    // DELETE http://127.0.0.1:8000/events/{event_id}
+                    await api.request(`/events/${id}`, { method: 'DELETE' });
+                    this.showToast('Event deleted successfully!', 'success');
+                    await this.fetchEvents();
+                } catch (err) {
+                    this.showToast(err.message || 'Failed to delete event', 'error');
+                }
+            },
+
+            async fetchMyRegistrations() {
+                const userId = this.user.id || api.getUserId();
+                if (!userId) return;
+
+                try {
+                    // GET http://127.0.0.1:8000/registrations/user/{user_id}
+                    const data = await api.request(`/registrations/user/${userId}`);
+                    if (Array.isArray(data)) {
+                        this.myRegistrations = data.map(reg => {
+                            const evt = reg.event || this.sampleEvents.find(e => e.id === reg.event_id) || {};
+                            return {
+                                id: reg.id,
+                                eventId: reg.event_id,
+                                title: evt.title || reg.event_title || `Event #${reg.event_id}`,
+                                date: evt.date || reg.date || 'TBD',
+                                location: evt.location || reg.location || 'Online',
+                                status: reg.status || 'Confirmed'
+                            };
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Could not fetch user registrations:', e.message);
+                }
+            },
+
+            isAlreadyRegistered(evtId) {
+                return this.myRegistrations.some(r => r.eventId === evtId && r.status === 'Confirmed');
+            },
+
+            async registerForEvent(evt) {
+                if (!this.user.isLoggedIn) {
+                    this.showToast('Please sign in to register for events', 'error');
+                    this.setView('login');
+                    return;
+                }
+
+                this.isSubmitting = true;
+                try {
+                    // POST http://127.0.0.1:8000/registrations
+                    await api.request('/registrations', {
+                        method: 'POST',
+                        body: {
+                            event_id: evt.id,
+                            user_id: this.user.id
+                        }
+                    });
+                    this.showToast(`Successfully registered for ${evt.title}!`, 'success');
+                    await this.fetchMyRegistrations();
+                    await this.fetchEvents();
+                } catch (e) {
+                    this.showToast(e.message || 'Registration failed', 'error');
+                } finally {
+                    this.isSubmitting = false;
+                }
+            },
+
+            cancelRegistrationModal(reg) {
+                this.modal.title = 'Cancel Registration';
+                this.modal.message = `Are you sure you want to cancel your pass for "${reg.title}"?`;
+                this.modal.targetId = reg.id;
+                this.modal.show = true;
+            },
+
+            async confirmCancelModal() {
+                const regId = this.modal.targetId;
+                try {
+                    // DELETE http://127.0.0.1:8000/registrations/{registration_id}
+                    await api.request(`/registrations/${regId}`, { method: 'DELETE' });
+                    this.showToast('Registration cancelled', 'success');
+                    await this.fetchMyRegistrations();
+                    await this.fetchEvents();
+                } catch (e) {
+                    this.showToast(e.message || 'Failed to cancel registration', 'error');
+                } finally {
+                    this.modal.show = false;
+                }
+            },
+
+            async updateProfile() {
+                const userId = this.user.id || api.getUserId();
+                if (!userId) return;
+                this.isSubmitting = true;
+
+                try {
+                    // PUT http://127.0.0.1:8000/profiles/{user_id}
+                    await api.request(`/profiles/${userId}`, {
+                        method: 'PUT',
+                        body: {
+                            full_name: this.user.name,
+                            role: this.user.role
+                        }
+                    });
+                    this.showToast('Profile updated successfully!', 'success');
+                } catch (e) {
+                    this.showToast(e.message || 'Failed to update profile', 'error');
+                } finally {
+                    this.isSubmitting = false;
+                }
+            },
+
+            async fetchAdminAttendees() {
+                try {
+                    const attendees = [];
+                    for (const evt of this.sampleEvents) {
+                        try {
+                            // GET http://127.0.0.1:8000/registrations/event/{event_id}
+                            const regList = await api.request(`/registrations/event/${evt.id}`);
+                            if (Array.isArray(regList)) {
+                                regList.forEach(r => {
+                                    attendees.push({
+                                        id: r.id,
+                                        name: r.user_name || r.full_name || r.user?.full_name || `User #${r.user_id}`,
+                                        email: r.user_email || r.email || r.user?.email || 'N/A',
+                                        event: evt.title
+                                    });
+                                });
+                            }
+                        } catch (err) {
+                            // Ignore missing endpoint/registrations for specific events
+                        }
+                    }
+                    this.sampleAttendees = attendees;
+                } catch (e) {
+                    console.warn('Error fetching admin attendees roster:', e.message);
+                }
+            }
+        },
+        async mounted() {
+            if (window.lucide) lucide.createIcons();
+            await this.fetchCurrentUser();
+            await this.fetchEvents();
+            if (this.user.isLoggedIn) {
+                await this.fetchMyRegistrations();
+            }
+        },
+        updated() {
+            if (window.lucide) lucide.createIcons();
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
